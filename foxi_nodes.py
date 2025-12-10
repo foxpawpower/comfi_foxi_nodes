@@ -8,7 +8,6 @@ class RandomFloat:
       - max_val (float): maximum value (default 0.15).
       - seed (int): optional seed; -1 = random, любое другое число = детерминированный результат.
       - hold_last (bool): если True, нода выдаёт последнее число без генерации.
-      - last_value (float): поле только для отображения последнего числа (readonly).
     """
 
     last_value = None  # хранение последнего сгенерированного числа
@@ -41,25 +40,19 @@ class RandomFloat:
                     "default": False,
                     "label": "Hold Last Value"
                 }),
-                # поле для отображения числа
-                "last_value": ("FLOAT", {
-                    "default": 0.0,
-                    "readonly": True,
-                    "step": 0.01,
-                    "label": "Last Generated"
-                }),
             }
         }
 
-    RETURN_TYPES = ("FLOAT",)
-    RETURN_NAMES = ("value",)
+    # возвращаем два значения: само число и last_value для UI
+    RETURN_TYPES = ("FLOAT", "FLOAT",)
+    RETURN_NAMES = ("value", "last_value",)
     FUNCTION = "generate"
     CATEGORY = "Foxi/Custom"
 
-    def generate(self, min_val, max_val, seed, hold_last, last_value):
+    def generate(self, min_val, max_val, seed, hold_last):
         # если включен режим "hold_last" → просто вернуть сохранённое число
         if hold_last and RandomFloat.last_value is not None:
-            return (RandomFloat.last_value, {"last_value": RandomFloat.last_value})
+            return (RandomFloat.last_value, RandomFloat.last_value)
 
         # нормализация диапазона
         if min_val > max_val:
@@ -75,8 +68,8 @@ class RandomFloat:
         # сохранить и округлить до сотых
         RandomFloat.last_value = round(value, 2)
 
-        # вернуть значение и обновить поле last_value в UI
-        return (RandomFloat.last_value, {"last_value": RandomFloat.last_value})
+        # вернуть оба значения
+        return (RandomFloat.last_value, RandomFloat.last_value)
 
 
 NODE_CLASS_MAPPINGS = {"RandomFloat": RandomFloat}
