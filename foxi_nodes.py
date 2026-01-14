@@ -79,5 +79,5 @@ class RandomFloat:
         return (RandomFloat.last_value, {"last_value": RandomFloat.last_value})
 
 
-NODE_CLASS_MAPPINGS = {"RandomFloat": RandomFloat}
-NODE_DISPLAY_NAME_MAPPINGS = {"RandomFloat": "Random Float"}
+NODE_CLASS_MAPPINGS = {"RandomFloatFox": RandomFloat}
+NODE_DISPLAY_NAME_MAPPINGS = {"RandomFloatFox": "Random Float fox"}
