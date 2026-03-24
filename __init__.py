@@ -1,7 +1,7 @@
-"""Package initializer for foxi_nodes custom nodes.
+"""Package initializer for foxi_nodes custom nodes."""
 
-This file makes the `foxi_nodes` directory importable by ComfyUI.
-It imports the node implementations so the loader finds them.
-"""
+from .foxi_nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
-from .foxi_nodes import *  # noqa: F401,F403
+WEB_DIRECTORY = "./js"
+
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

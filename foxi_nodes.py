@@ -7,11 +7,12 @@ class RandomFloat:
       - min_val (float): minimum value (default 0.05).
       - max_val (float): maximum value (default 0.15).
       - seed (int): optional seed; -1 = random, любое другое число = детерминированный результат.
-      - hold_last (bool): если True, нода выдаёт последнее число без генерации.
+            - out_last_value (bool): если True, нода выдаёт last_value без генерации.
       - last_value (float): поле только для отображения последнего числа (readonly).
     """
 
     last_value = None  # хранение последнего сгенерированного числа
+    run_count = 0       # счётчик запусков
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -37,16 +38,22 @@ class RandomFloat:
                     "max": 2147483647,
                     "label": "Seed (-1=random)"
                 }),
-                "hold_last": ("BOOLEAN", {
+                "out_last_value": ("BOOLEAN", {
                     "default": False,
-                    "label": "Hold Last Value"
+                    "label": "Out Last Value"
                 }),
                 # поле для отображения числа
                 "last_value": ("FLOAT", {
                     "default": 0.0,
-                    "readonly": True,
                     "step": 0.00001,
                     "label": "Last Generated"
+                }),
+                # счётчик — обычный INT вход, значение устанавливается кодом через IS_CHANGED
+                "run_count": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 2147483647,
+                    "label": "Run #"
                 }),
             }
         }
@@ -55,11 +62,21 @@ class RandomFloat:
     RETURN_NAMES = ("value",)
     FUNCTION = "generate"
     CATEGORY = "Foxi/Custom"
+    OUTPUT_NODE = True
 
-    def generate(self, min_val, max_val, seed, hold_last, last_value):
-        # если включен режим "hold_last" → просто вернуть сохранённое число
-        if hold_last and RandomFloat.last_value is not None:
-            return (RandomFloat.last_value, {"last_value": RandomFloat.last_value})
+    @classmethod
+    def IS_CHANGED(cls, min_val, max_val, seed, out_last_value, last_value, run_count):
+        # при seed=-1 всегда пересчитываем (возвращаем float("nan") чтобы нода не кешировалась)
+        if not out_last_value and (seed is None or seed < 0):
+            return float("nan")
+        return seed
+
+    def generate(self, min_val, max_val, seed, out_last_value, last_value, run_count):
+        # если включен режим out_last_value → вернуть текущее значение last_value без генерации
+        if out_last_value:
+            value = round(last_value, 5)
+            RandomFloat.last_value = value
+            return {"ui": {"last_value": [value], "run_count": [RandomFloat.run_count]}, "result": (value,)}
 
         # нормализация диапазона
         if min_val > max_val:
@@ -72,11 +89,18 @@ class RandomFloat:
             rnd = random.Random(seed)
             value = rnd.uniform(min_val, max_val)
 
-        # сохранить и округлить до сотых
-        RandomFloat.last_value = round(value, 2)
+        # сохранить и округлить до пяти знаков
+        RandomFloat.last_value = round(value, 5)
+        RandomFloat.run_count += 1
 
-        # вернуть значение и обновить поле last_value в UI
-        return (RandomFloat.last_value, {"last_value": RandomFloat.last_value})
+        # обновить виджеты напрямую через значения полей
+        return {
+            "ui": {
+                "last_value": [RandomFloat.last_value],
+                "run_count": [RandomFloat.run_count]
+            },
+            "result": (RandomFloat.last_value,)
+        }
 
 
 NODE_CLASS_MAPPINGS = {"RandomFloatFox": RandomFloat}
