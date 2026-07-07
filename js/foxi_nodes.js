@@ -21,13 +21,6 @@ app.registerExtension({
                 if (w) w.value = message.run_count[0];
             }
 
-            // записываем реально использованный seed обратно в виджет,
-            // чтобы он сохранился в workflow и мог быть воспроизведён через Fixed
-            if (message.seed !== undefined) {
-                const w = this.widgets?.find(w => w.name === "seed");
-                if (w) w.value = message.seed[0];
-            }
-
             app.graph?.setDirtyCanvas(true, true);
         };
     },
