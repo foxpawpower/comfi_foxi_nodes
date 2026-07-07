@@ -23,14 +23,14 @@ class RandomFloat:
                     "default": 0.05,
                     "min": -1e9,
                     "max": 1e9,
-                    "step": 0.01,
+                    "step": 0.00001,
                     "label": "Min"
                 }),
                 "max_val": ("FLOAT", {
                     "default": 0.15,
                     "min": -1e9,
                     "max": 1e9,
-                    "step": 0.01,
+                    "step": 0.00001,
                     "label": "Max"
                 }),
                 "seed": ("INT", {
