@@ -9,7 +9,6 @@ class RandomFloat:
       - seed (int): зерно генерации. ComfyUI сам добавляет рядом выпадающий
             control_after_generate (fixed / randomize / increment / decrement) —
             он и управляет тем, меняется seed между запусками или фиксируется.
-      - out_last_value (bool): если True, нода выдаёт last_value без генерации.
       - last_value (float): поле только для отображения последнего числа (readonly).
     """
 
@@ -40,10 +39,6 @@ class RandomFloat:
                     "max": 2147483647,
                     "label": "Seed"
                 }),
-                "out_last_value": ("BOOLEAN", {
-                    "default": False,
-                    "label": "Out Last Value"
-                }),
                 # поле для отображения числа
                 "last_value": ("FLOAT", {
                     "default": 0.0,
@@ -67,24 +62,12 @@ class RandomFloat:
     OUTPUT_NODE = True
 
     @classmethod
-    def IS_CHANGED(cls, min_val, max_val, seed, out_last_value, last_value, run_count):
-        # out_last_value → результат зависит только от last_value
-        if out_last_value:
-            return last_value
+    def IS_CHANGED(cls, min_val, max_val, seed, last_value, run_count):
         # результат детерминирован seed; менять его между запусками —
         # задача control_after_generate (fixed → seed тот же, randomize → новый)
         return seed
 
-    def generate(self, min_val, max_val, seed, out_last_value, last_value, run_count):
-        # если включен режим out_last_value → вернуть текущее значение last_value без генерации
-        if out_last_value:
-            value = round(last_value, 5)
-            RandomFloat.last_value = value
-            return {
-                "ui": {"last_value": [value], "run_count": [RandomFloat.run_count]},
-                "result": (value,),
-            }
-
+    def generate(self, min_val, max_val, seed, last_value, run_count):
         # нормализация диапазона
         if min_val > max_val:
             min_val, max_val = max_val, min_val
