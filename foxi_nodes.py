@@ -6,8 +6,11 @@ class RandomFloat:
     Inputs:
       - min_val (float): minimum value (default 0.05).
       - max_val (float): maximum value (default 0.15).
-      - seed (int): optional seed; -1 = random, любое другое число = детерминированный результат.
-            - out_last_value (bool): если True, нода выдаёт last_value без генерации.
+      - seed (int): используемое зерно генерации. При fixed=False сюда записывается
+            реально использованный случайный seed (сохраняется в workflow).
+      - fixed (bool): если True — использовать запомненный seed (воспроизводимо);
+            если False — генерировать новый случайный seed каждый запуск.
+      - out_last_value (bool): если True, нода выдаёт last_value без генерации.
       - last_value (float): поле только для отображения последнего числа (readonly).
     """
 
@@ -33,10 +36,14 @@ class RandomFloat:
                     "label": "Max"
                 }),
                 "seed": ("INT", {
-                    "default": -1,
-                    "min": -1,
+                    "default": 0,
+                    "min": 0,
                     "max": 2147483647,
-                    "label": "Seed (-1=random)"
+                    "label": "Seed"
+                }),
+                "fixed": ("BOOLEAN", {
+                    "default": False,
+                    "label": "Fixed"
                 }),
                 "out_last_value": ("BOOLEAN", {
                     "default": False,
@@ -65,41 +72,51 @@ class RandomFloat:
     OUTPUT_NODE = True
 
     @classmethod
-    def IS_CHANGED(cls, min_val, max_val, seed, out_last_value, last_value, run_count):
-        # при seed=-1 всегда пересчитываем (возвращаем float("nan") чтобы нода не кешировалась)
-        if not out_last_value and (seed is None or seed < 0):
+    def IS_CHANGED(cls, min_val, max_val, seed, fixed, out_last_value, last_value, run_count):
+        # out_last_value → результат зависит только от last_value
+        if out_last_value:
+            return last_value
+        # fixed=False → всегда пересчитываем (nan = нода не кешируется)
+        if not fixed:
             return float("nan")
+        # fixed=True → результат детерминирован запомненным seed
         return seed
 
-    def generate(self, min_val, max_val, seed, out_last_value, last_value, run_count):
+    def generate(self, min_val, max_val, seed, fixed, out_last_value, last_value, run_count):
         # если включен режим out_last_value → вернуть текущее значение last_value без генерации
         if out_last_value:
             value = round(last_value, 5)
             RandomFloat.last_value = value
-            return {"ui": {"last_value": [value], "run_count": [RandomFloat.run_count]}, "result": (value,)}
+            return {
+                "ui": {"last_value": [value], "run_count": [RandomFloat.run_count], "seed": [seed]},
+                "result": (value,),
+            }
 
         # нормализация диапазона
         if min_val > max_val:
             min_val, max_val = max_val, min_val
 
-        # генерация нового числа
-        if seed is None or seed < 0:
-            value = random.uniform(min_val, max_val)
-        else:
-            rnd = random.Random(seed)
-            value = rnd.uniform(min_val, max_val)
+        # если не fixed → сгенерировать новый случайный seed и запомнить его
+        if not fixed:
+            seed = random.randint(0, 2147483647)
+
+        # генерация по seed (воспроизводимо)
+        rnd = random.Random(seed)
+        value = rnd.uniform(min_val, max_val)
 
         # сохранить и округлить до пяти знаков
         RandomFloat.last_value = round(value, 5)
         RandomFloat.run_count += 1
 
         # обновить виджеты напрямую через значения полей
+        # seed возвращается в UI, чтобы использованное зерно сохранилось в workflow
         return {
             "ui": {
                 "last_value": [RandomFloat.last_value],
-                "run_count": [RandomFloat.run_count]
+                "run_count": [RandomFloat.run_count],
+                "seed": [seed],
             },
-            "result": (RandomFloat.last_value,)
+            "result": (RandomFloat.last_value,),
         }
 
 
