@@ -6,12 +6,11 @@ class RandomFloat:
     Inputs:
       - min_val (float): minimum value (default 0.05).
       - max_val (float): maximum value (default 0.15).
-      - seed (int): используемое зерно генерации. При fixed=False сюда записывается
-            реально использованный случайный seed (сохраняется в workflow).
-      - fixed (bool): если True — использовать запомненный seed (воспроизводимо);
-            если False — генерировать новый случайный seed каждый запуск.
-      - out_last_value (bool): если True, нода выдаёт last_value без генерации.
+      - seed (int): optional seed; -1 = random, любое другое число = детерминированный результат.
+            - out_last_value (bool): если True, нода выдаёт last_value без генерации.
       - last_value (float): поле только для отображения последнего числа (readonly).
+      - fixed (bool): если True — использовать запомненный seed (воспроизводимо);
+            если False — работать как раньше (случайная генерация каждый запуск).
     """
 
     last_value = None  # хранение последнего сгенерированного числа
@@ -36,14 +35,10 @@ class RandomFloat:
                     "label": "Max"
                 }),
                 "seed": ("INT", {
-                    "default": 0,
-                    "min": 0,
+                    "default": -1,
+                    "min": -1,
                     "max": 2147483647,
-                    "label": "Seed"
-                }),
-                "fixed": ("BOOLEAN", {
-                    "default": False,
-                    "label": "Fixed"
+                    "label": "Seed (-1=random)"
                 }),
                 "out_last_value": ("BOOLEAN", {
                     "default": False,
@@ -62,6 +57,12 @@ class RandomFloat:
                     "max": 2147483647,
                     "label": "Run #"
                 }),
+                # галочка: зафиксировать запомненный seed (добавлена в конец,
+                # чтобы порядок остальных виджетов не менялся для старых workflow)
+                "fixed": ("BOOLEAN", {
+                    "default": False,
+                    "label": "Fixed"
+                }),
             }
         }
 
@@ -72,17 +73,17 @@ class RandomFloat:
     OUTPUT_NODE = True
 
     @classmethod
-    def IS_CHANGED(cls, min_val, max_val, seed, fixed, out_last_value, last_value, run_count):
+    def IS_CHANGED(cls, min_val, max_val, seed, out_last_value, last_value, run_count, fixed):
         # out_last_value → результат зависит только от last_value
         if out_last_value:
             return last_value
-        # fixed=False → всегда пересчитываем (nan = нода не кешируется)
-        if not fixed:
-            return float("nan")
-        # fixed=True → результат детерминирован запомненным seed
-        return seed
+        # fixed → детерминировано запомненным seed (нода кешируется)
+        if fixed:
+            return seed
+        # обычный режим → всегда пересчитываем (nan = нода не кешируется)
+        return float("nan")
 
-    def generate(self, min_val, max_val, seed, fixed, out_last_value, last_value, run_count):
+    def generate(self, min_val, max_val, seed, out_last_value, last_value, run_count, fixed):
         # если включен режим out_last_value → вернуть текущее значение last_value без генерации
         if out_last_value:
             value = round(last_value, 5)
@@ -96,25 +97,30 @@ class RandomFloat:
         if min_val > max_val:
             min_val, max_val = max_val, min_val
 
-        # если не fixed → сгенерировать новый случайный seed и запомнить его
-        if not fixed:
-            seed = random.randint(0, 2147483647)
+        # выбор seed:
+        #   fixed=True  → использовать запомненный seed из виджета (воспроизводимо)
+        #   fixed=False → как раньше: случайная генерация каждый запуск
+        #                 (генерируем реальный integer seed, чтобы его можно было запомнить)
+        if fixed:
+            use_seed = seed
+        else:
+            use_seed = random.randint(0, 2147483647)
 
-        # генерация по seed (воспроизводимо)
-        rnd = random.Random(seed)
+        # генерация по seed
+        rnd = random.Random(use_seed)
         value = rnd.uniform(min_val, max_val)
 
         # сохранить и округлить до пяти знаков
         RandomFloat.last_value = round(value, 5)
         RandomFloat.run_count += 1
 
-        # обновить виджеты напрямую через значения полей
+        # обновить виджеты напрямую через значения полей;
         # seed возвращается в UI, чтобы использованное зерно сохранилось в workflow
         return {
             "ui": {
                 "last_value": [RandomFloat.last_value],
                 "run_count": [RandomFloat.run_count],
-                "seed": [seed],
+                "seed": [use_seed],
             },
             "result": (RandomFloat.last_value,),
         }
