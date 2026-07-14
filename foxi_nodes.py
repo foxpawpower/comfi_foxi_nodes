@@ -52,7 +52,12 @@ class RandomFloat:
                     "max": 2147483647,
                     "label": "Run #"
                 }),
-            }
+            },
+            # скрытые входы: id ноды и метаданные, которые попадут в сохранённый PNG
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+            },
         }
 
     RETURN_TYPES = ("FLOAT",)
@@ -62,12 +67,12 @@ class RandomFloat:
     OUTPUT_NODE = True
 
     @classmethod
-    def IS_CHANGED(cls, min_val, max_val, seed, last_value, run_count):
+    def IS_CHANGED(cls, min_val, max_val, seed, last_value, run_count, **kwargs):
         # результат детерминирован seed; менять его между запусками —
         # задача control_after_generate (fixed → seed тот же, randomize → новый)
         return seed
 
-    def generate(self, min_val, max_val, seed, last_value, run_count):
+    def generate(self, min_val, max_val, seed, last_value, run_count, unique_id=None, extra_pnginfo=None):
         # нормализация диапазона
         if min_val > max_val:
             min_val, max_val = max_val, min_val
@@ -79,6 +84,24 @@ class RandomFloat:
         # сохранить и округлить до пяти знаков
         RandomFloat.last_value = round(value, 5)
         RandomFloat.run_count += 1
+
+        # обновить last_value/run_count в workflow-снимке, который будет
+        # встроен в сохранённый PNG: снимок делается при постановке в очередь
+        # (до выполнения), поэтому без этого в картинку попадает устаревшее число
+        if extra_pnginfo and unique_id is not None:
+            workflow = extra_pnginfo.get("workflow")
+            for node in (workflow.get("nodes", []) if workflow else []):
+                if str(node.get("id")) != str(unique_id):
+                    continue
+                wv = node.get("widgets_values")
+                # порядок: min, max, seed, control_after_generate, last_value, run_count
+                if isinstance(wv, list) and len(wv) >= 2:
+                    wv[-2] = RandomFloat.last_value
+                    wv[-1] = RandomFloat.run_count
+                elif isinstance(wv, dict):
+                    wv["last_value"] = RandomFloat.last_value
+                    wv["run_count"] = RandomFloat.run_count
+                break
 
         # обновить виджеты напрямую через значения полей
         return {
