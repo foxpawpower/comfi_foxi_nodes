@@ -52,12 +52,7 @@ class RandomFloat:
                     "max": 2147483647,
                     "label": "Run #"
                 }),
-            },
-            # скрытые входы: id ноды и метаданные, которые попадут в сохранённый PNG
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-                "extra_pnginfo": "EXTRA_PNGINFO",
-            },
+            }
         }
 
     RETURN_TYPES = ("FLOAT",)
@@ -72,36 +67,19 @@ class RandomFloat:
         # задача control_after_generate (fixed → seed тот же, randomize → новый)
         return seed
 
-    def generate(self, min_val, max_val, seed, last_value, run_count, unique_id=None, extra_pnginfo=None):
-        # нормализация диапазона
+    @staticmethod
+    def compute(min_val, max_val, seed):
+        """Детерминированное вычисление значения по seed — единственный
+        источник истины, используется и нодой, и API для фронтенда."""
         if min_val > max_val:
             min_val, max_val = max_val, min_val
-
-        # генерация детерминирована seed → одинаковый seed = одинаковое число
         rnd = random.Random(seed)
-        value = rnd.uniform(min_val, max_val)
+        return round(rnd.uniform(min_val, max_val), 5)
 
-        # сохранить и округлить до пяти знаков
-        RandomFloat.last_value = round(value, 5)
+    def generate(self, min_val, max_val, seed, last_value, run_count):
+        # сохранить последнее значение (детерминировано seed)
+        RandomFloat.last_value = self.compute(min_val, max_val, seed)
         RandomFloat.run_count += 1
-
-        # обновить last_value/run_count в workflow-снимке, который будет
-        # встроен в сохранённый PNG: снимок делается при постановке в очередь
-        # (до выполнения), поэтому без этого в картинку попадает устаревшее число
-        if extra_pnginfo and unique_id is not None:
-            workflow = extra_pnginfo.get("workflow")
-            for node in (workflow.get("nodes", []) if workflow else []):
-                if str(node.get("id")) != str(unique_id):
-                    continue
-                wv = node.get("widgets_values")
-                # порядок: min, max, seed, control_after_generate, last_value, run_count
-                if isinstance(wv, list) and len(wv) >= 2:
-                    wv[-2] = RandomFloat.last_value
-                    wv[-1] = RandomFloat.run_count
-                elif isinstance(wv, dict):
-                    wv["last_value"] = RandomFloat.last_value
-                    wv["run_count"] = RandomFloat.run_count
-                break
 
         # обновить виджеты напрямую через значения полей
         return {
@@ -111,6 +89,29 @@ class RandomFloat:
             },
             "result": (RandomFloat.last_value,),
         }
+
+
+# API для фронтенда: при загрузке workflow JS запрашивает истинное значение
+# для сохранённых seed/min/max и подставляет его в last_value без нажатия Run
+try:
+    from server import PromptServer
+    from aiohttp import web
+
+    @PromptServer.instance.routes.post("/foxi/random_float")
+    async def foxi_random_float(request):
+        try:
+            data = await request.json()
+            value = RandomFloat.compute(
+                float(data.get("min_val", 0.0)),
+                float(data.get("max_val", 0.0)),
+                int(data.get("seed", 0)),
+            )
+            return web.json_response({"value": value})
+        except Exception as e:
+            return web.json_response({"error": str(e)}, status=400)
+except Exception:
+    # вне окружения ComfyUI (например, при тестах) сервер недоступен — не критично
+    pass
 
 
 NODE_CLASS_MAPPINGS = {"RandomFloatFox": RandomFloat}
